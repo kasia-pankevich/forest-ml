@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "forest-ml"
+version = "0.1.0"
+description = "Model selection and evaluation for Kaggle competition 'Forest Cover Type Prediction' https://www.kaggle.com/competitions/forest-cover-type-prediction"
+authors = ["Kasia Pankevich <kasia.bahar@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
