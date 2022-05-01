@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Model selection and evaluation for Kaggle competition 'Forest Cover Type Prediction' https://www.kaggle.com/competitions/forest-cover-type-prediction"
 authors = ["Kasia Pankevich <kasia.bahar@gmail.com>"]
 
+[tool.poetry.scripts]
+train = "forest_ml.train:train"
+
 [tool.poetry.dependencies]
 python = "^3.9"
 click = "^8.1.3"
