@@ -11,6 +11,7 @@ train = "forest_ml.train:train"
 python = "^3.9"
 click = "^8.1.3"
 pandas = "^1.4.2"
+pandas-profiling = "^3.1.0"
 
 [tool.poetry.dev-dependencies]
 
