@@ -27,7 +27,8 @@ def train(ds_path: Path, n_neighbors: int, k_fold:int, shuffle: bool, rand_state
 
     knn = KNeighborsClassifier(n_neighbors)
     with mlflow.start_run(run_name="KNN StratifiedKFold"):
-        kfold = StratifiedKFold(n_splits=k_fold, shuffle=shuffle, random_state=rand_state)
+        r_state = rand_state if shuffle == True else None
+        kfold = StratifiedKFold(n_splits=k_fold, shuffle=shuffle, random_state=r_state)
         cv_results = cross_validate(knn, X, y, 
                                     scoring={"Matthews correlation": make_scorer(matthews_corrcoef), 
                                             "Accuracy": "accuracy",
