@@ -44,7 +44,7 @@ def train(ds_path: Path, model: str, n_neighbors: int, leaf_size: int, c_reg: fl
                 click.echo("Classifier wasn't initialized.")
                 return
 
-        with mlflow.start_run(run_name=model.join(" StratifiedKFold")):
+        with mlflow.start_run(run_name=" ".join([model, "StratifiedKFold"])):
                 r_state = rand_state if shuffle == True else None
                 kfold = StratifiedKFold(n_splits=k_fold, shuffle=shuffle, random_state=r_state)
                 cv_results = cross_validate(classifier, X, y, 
@@ -53,7 +53,7 @@ def train(ds_path: Path, model: str, n_neighbors: int, leaf_size: int, c_reg: fl
                                                 "F1": make_scorer(f1_score, average="weighted")}, 
                                         cv=kfold, return_estimator=True)
 
-                mlflow.sklearn.log_model(classifier, "forest_".join(model))
+                mlflow.sklearn.log_model(classifier, "".join(["forest_", model]))
                 mlflow.log_param("k_fold", k_fold)
                 mlflow.log_param("shuffle", shuffle)
 
