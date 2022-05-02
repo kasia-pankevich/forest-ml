@@ -2,6 +2,8 @@ import click
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_validate, StratifiedKFold
@@ -10,9 +12,31 @@ from joblib import dump
 import mlflow
 import mlflow.sklearn
 
+def create_pipeline(preprocess: str, model: str, n_neighbors: int, leaf_size: int, 
+                        c_reg: float, max_iter:int, rand_state: int) -> Pipeline:
+        preproc_map = {"none": None, "min_max": MinMaxScaler(), "standard": StandardScaler()}
+        model_map = {
+                "knn":
+                KNeighborsClassifier(n_neighbors, leaf_size=leaf_size, 
+                                        weights="distance", n_jobs=-1),
+                "logreg":
+                LogisticRegression(C=c_reg, max_iter=max_iter, 
+                                        random_state=rand_state, n_jobs=-1)
+        }
+        preprocessor = preproc_map[preprocess.lower()]
+        ppl_steps = []
+        if preprocessor is not None:
+                ppl_steps.append(("preprocessing", preprocessor))
+        classifier = model_map[model.lower()]
+        ppl_steps.append(("classification", classifier))
+        return Pipeline(ppl_steps)
+
+
 @click.command()
 @click.option("-p", "--ds-path", default="data/train.csv", 
                 type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--preproc", default="none", 
+                type=click.Choice(["none", "min_max", "standard"], case_sensitive=False))
 @click.option("-m", "--model", default="knn", type=click.Choice(["knn", "logreg"], case_sensitive=False))
 @click.option("-n", "--n-neighbors", default=5, type=int)
 @click.option("--leaf-size", default=30, type=int)
@@ -23,7 +47,7 @@ import mlflow.sklearn
 @click.option("-r", "--rand-state", default=42, type=int)
 @click.option("-s", "--save-model-path", default="data/model.joblib",
                 type=click.Path(dir_okay=False, writable=True, path_type=Path))
-def train(ds_path: Path, model: str, n_neighbors: int, leaf_size: int, c_reg: float, max_iter:int, 
+def train(ds_path: Path, preproc: str, model: str, n_neighbors: int, leaf_size: int, c_reg: float, max_iter:int, 
                 k_fold:int, shuffle: bool, rand_state: int, 
                 save_model_path: Path) -> None:
         
@@ -32,18 +56,8 @@ def train(ds_path: Path, model: str, n_neighbors: int, leaf_size: int, c_reg: fl
 
         X, y = data.drop(columns=["Id", "Cover_Type"]), data["Cover_Type"]
 
-        classifier = None
-        if model == "knn":
-                classifier = KNeighborsClassifier(n_neighbors,leaf_size=leaf_size, 
-                                                        weights="distance", n_jobs=-1)
-        elif model == "logreg":
-                classifier = LogisticRegression(C=c_reg, max_iter=max_iter, 
-                                                        random_state=rand_state, n_jobs=-1)
+        classifier = create_pipeline(preproc, model, n_neighbors, leaf_size, c_reg, max_iter, rand_state)
         
-        if classifier is None:
-                click.echo("Classifier wasn't initialized.")
-                return
-
         with mlflow.start_run(run_name=" ".join([model, "StratifiedKFold"])):
                 r_state = rand_state if shuffle == True else None
                 kfold = StratifiedKFold(n_splits=k_fold, shuffle=shuffle, random_state=r_state)
@@ -54,6 +68,7 @@ def train(ds_path: Path, model: str, n_neighbors: int, leaf_size: int, c_reg: fl
                                         cv=kfold, return_estimator=True)
 
                 mlflow.sklearn.log_model(classifier, "".join(["forest_", model]))
+                mlflow.log_param("preprocess", preproc)
                 mlflow.log_param("k_fold", k_fold)
                 mlflow.log_param("shuffle", shuffle)
 
