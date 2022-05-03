@@ -39,8 +39,90 @@ def create_pipeline(preprocess: str, n_features: int, model: str, n_neighbors: i
         if preprocessor is not None:
                 ppl_steps.append(("preprocessing", preprocessor))
         classifier = model_map[model.lower()]
-        ppl_steps.append(("classification", classifier))
+        ppl_steps.append(("clf", classifier))
         return Pipeline(ppl_steps)
+
+def train_with_nested_cv(classifier, X, y, cv_out,
+                model: str, k_fold_inn:int, shuffle: bool, rand_state: int) -> None:
+        out_res = {"accuracy": [], "matthews": [], "f1": []}
+        for train_ix, test_ix in cv_out.split(X, y):
+                sample_size = 5000
+                mlflow.log_param("sample_size", sample_size)
+                X_train = X[train_ix[:sample_size], :]
+                X_test = X[test_ix, :]
+                y_train = y[train_ix[:sample_size]]
+                y_test = y[test_ix]     
+                with mlflow.start_run(nested=True, run_name="_".join([model, "tuning_params"])):
+                        cv_in = StratifiedKFold(n_splits=k_fold_inn, shuffle=shuffle, random_state=rand_state)
+                        params = {}
+                        if model == "knn":
+                                params = {"clf__n_neighbors": range(1, 10),
+                                        "clf__leaf_size": [10, 20, 30],
+                                        "clf__weights": ["uniform", "distance"]
+                                }
+                        elif model == "logreg":
+                                params = {"clf__C": [0.0001, 0.001, 0.05, 0.01, 0.5, 1],
+                                        "clf__max_iter": [10, 50, 100, 150, 200],
+                                        "clf__penalty": ["l1", "l2", "elasticnet", "none"]
+                                }
+                        elif model == "rf":
+                                params = {"clf__n_estimators": [20, 50, 75, 100, 150],
+                                        "clf__max_depth": [5, 7, 10, 20, 30, None],
+                                        "clf__criterion": ["gini", "entropy"],
+                                        "clf__max_features": ["sqrt", "log2", 0.9, 0.7, 0.5]
+                                }
+                        search = GridSearchCV(classifier, params,
+                                                scoring={"Matthews correlation": make_scorer(matthews_corrcoef), 
+                                                "Accuracy": "accuracy",
+                                                "F1": make_scorer(f1_score, average="weighted")},
+                                                cv=cv_in, refit="Accuracy", n_jobs=-1)
+                        results = search.fit(X_train, y_train)
+                        target = results.best_estimator_.predict(X_test)
+                        accuracy = accuracy_score(y_test, target)
+                        matthews = matthews_corrcoef(y_test, target)
+                        f1 = f1_score(y_test, target, average="weighted")
+                        out_res["best_params"] = results.best_params_
+                        out_res["accuracy"].append(accuracy)
+                        out_res["matthews"].append(matthews)
+                        out_res["f1"].append(f1)
+                        mlflow.sklearn.log_model(results.best_estimator_, "".join(["forest_", model]))
+                        for key, value in results.best_params_.items():
+                                mlflow.log_param(key, value)
+                        
+                        mlflow.log_metric("matthews_corrcoef", matthews)
+                        mlflow.log_metric("Accuracy score", accuracy)
+                        mlflow.log_metric("F1 score", f1)
+        mlflow.log_metric("matthews_corrcoef", np.mean(out_res["matthews"]))
+        mlflow.log_metric("Accuracy score", np.mean(out_res["accuracy"]))
+        mlflow.log_metric("F1 score", np.mean(out_res["f1"]))
+        return out_res
+
+def train_without_nested_cv(classifier, X, y, kfold, model: str, 
+                n_neighbors: int, leaf_size: int, 
+                c_reg: float, max_iter:int, 
+                n_estimators: int, max_depth: int,
+                k_fold:int) -> None:
+        cv_results = cross_validate(classifier, X, y, 
+                                        scoring={"Matthews correlation": make_scorer(matthews_corrcoef), 
+                                                "Accuracy": "accuracy",
+                                                "F1": make_scorer(f1_score, average="weighted")}, 
+                                        cv=kfold, return_estimator=True)
+
+        if model == "knn":
+                mlflow.log_param("n_neighbors", n_neighbors)
+                mlflow.log_param("leaf_size", leaf_size)
+        elif model == "logreg":
+                mlflow.log_param("C", c_reg)
+                mlflow.log_param("max_iter", max_iter)
+        elif model == "rf":
+                mlflow.log_param("n_estimators", n_estimators)
+                mlflow.log_param("max_depth", max_depth)
+        
+        mlflow.sklearn.log_model(classifier, "".join(["forest_", model]))
+        mlflow.log_metric("matthews_corrcoef", np.mean(cv_results["test_Matthews correlation"]))
+        mlflow.log_metric("Accuracy score", np.mean(cv_results["test_Accuracy"]))
+        mlflow.log_metric("F1 score", np.mean(cv_results["test_F1"]))
+        return cv_results
 
 
 @click.command()
@@ -58,7 +140,7 @@ def create_pipeline(preprocess: str, n_features: int, model: str, n_neighbors: i
 @click.option("--n-estimators", default=100, type=int)
 @click.option("--max-depth", default=None, type=int)
 @click.option("-f", "--k-fold", default=5, type=int)
-@click.option("--k-fold-inn", default=5, type=int)
+@click.option("--k-fold-inn", default=3, type=int)
 @click.option("--shuffle", default=True, type=bool)
 @click.option("-r", "--rand-state", default=42, type=int)
 @click.option("-s", "--save-model-path", default="data/model.joblib",
@@ -80,78 +162,19 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
         
         r_state = rand_state if shuffle == True else None
         cv_out = StratifiedKFold(n_splits=k_fold, shuffle=shuffle, random_state=r_state)
-        out_res = {"accuracy": [], "matthews": [], "f1": []}
         with mlflow.start_run(run_name="_".join([model, "nested_k_fold"])):
+                mlflow.log_param("nested_cv", nested_cv)
                 if nested_cv == True:
-                        for train_ix, test_ix in cv_out.split(X):
-                                X_train = X[train_ix, :]
-                                X_test = X[test_ix, :]
-                                y_train = y[train_ix]
-                                y_test = y[test_ix]
-                                with mlflow.start_run(run_name="_".join([model, "tuning_params"])):
-                                        cv_in = StratifiedKFold(n_splits=k_fold_inn, shuffle=shuffle, random_state=r_state)
-                                        params = {}
-                                        if model == "knn":
-                                                params = {"n_neighbors": range(1, 10),
-                                                        "leaf_size": [10, 20, 30],
-                                                        "weights": ["uniform", "distance"]
-                                                }
-                                        elif model == "logreg":
-                                                params = {"C": [0.0001, 0.001, 0.05, 0.01, 0.5, 1],
-                                                        "max_iter": [10, 50, 100, 150, 200],
-                                                        "penalty": ["l1", "l2", "elasticnet", "none"]
-                                                }
-                                        elif model == "rf":
-                                                params = {"n_estimators": [20, 50, 75, 100, 150],
-                                                        "max_depth": [5, 7, 10, 20, 30, None],
-                                                        "criterion": ["gini", "entropy"],
-                                                        "max_features": ["sqrt", "log2", 0.9, 0.8, 0.7, 0.6] 
-                                                }
-                                        search = GridSearchCV(classifier, params,
-                                                                scoring={"Matthews correlation": make_scorer(matthews_corrcoef), 
-                                                                "Accuracy": "accuracy",
-                                                                "F1": make_scorer(f1_score, average="weighted")},
-                                                                cv=cv_in, refit=True, n_jobs=-1)
-                                        results = search.fit(X_train, y_train)
-                                        target = results.best_estimator_.predict(X_test)
-                                        accuracy = accuracy_score(y_test, target)
-                                        matthews = matthews_corrcoef(y_test, target)
-                                        f1 = f1_score(y_test, target)
-                                        out_res["accuracy"].append(accuracy)
-                                        out_res["matthews"].append(matthews)
-                                        out_res["f1"].append(f1)
-                                        mlflow.sklearn.log_model(classifier, "".join(["forest_", results.best_estimator_]))
-                                        for key, value in results.best_params_.items():
-                                                mlflow.log_param(key, value)
-                                        
-                                        mlflow.log_metric("matthews_corrcoef", matthews)
-                                        mlflow.log_metric("Accuracy score", accuracy)
-                                        mlflow.log_metric("F1 score", f1)
-                        mlflow.log_metric("matthews_corrcoef", np.mean(out_res["matthews"]))
-                        mlflow.log_metric("Accuracy score", np.mean(out_res["accuracy"]))
-                        mlflow.log_metric("F1 score", np.mean(out_res["f1"]))
+                        cv_results =train_with_nested_cv(classifier, X.to_numpy(), y.to_numpy(), cv_out, model, 
+                                                        k_fold_inn, shuffle, r_state)
                 else:
-                        cv_results = cross_validate(classifier, X, y, 
-                                                scoring={"Matthews correlation": make_scorer(matthews_corrcoef), 
-                                                        "Accuracy": "accuracy",
-                                                        "F1": make_scorer(f1_score, average="weighted")}, 
-                                                cv=kfold, return_estimator=True)
-
-                        if model == "knn":
-                                mlflow.log_param("n_neighbors", n_neighbors)
-                                mlflow.log_param("leaf_size", leaf_size)
-                        elif model == "logreg":
-                                mlflow.log_param("C", c_reg)
-                                mlflow.log_param("max_iter", max_iter)
-                        elif model == "rf":
-                                mlflow.log_param("n_estimators", n_estimators)
-                                mlflow.log_param("max_depth", max_depth)
+                        cv_results = train_without_nested_cv(classifier, X, y, cv_out, model, 
+                                                n_neighbors, leaf_size, 
+                                                c_reg, max_iter, 
+                                                n_estimators, max_depth,
+                                                k_fold)
                         
-                        mlflow.log_metric("matthews_corrcoef", np.mean(cv_results["test_Matthews correlation"]))
-                        mlflow.log_metric("Accuracy score", np.mean(cv_results["test_Accuracy"]))
-                        mlflow.log_metric("F1 score", np.mean(cv_results["test_F1"]))
 
-                mlflow.sklearn.log_model(classifier, "".join(["forest_", model]))
                 mlflow.log_param("preprocess", preproc)
                 mlflow.log_param("n_features", n_features)
                 mlflow.log_param("k_fold", k_fold)
