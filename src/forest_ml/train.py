@@ -65,7 +65,7 @@ def train_with_nested_cv(classifier, X, y, cv_out,
                                         "clf__weights": ["uniform", "distance"]
                                 }
                         elif model == "logreg":
-                                params = {"clf__C": [0.0001, 0.001, 0.05, 0.01, 0.5, 1],
+                                params = {"clf__C": [0.001, 0.01, 0.5, 1, 10, 100, 1000],
                                         "clf__max_iter": [10, 50, 100, 150, 200],
                                         "clf__penalty": ["l1", "l2", "elasticnet"]
                                 }
@@ -178,7 +178,7 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
                 k_fold:int, k_fold_inn:int, shuffle: bool, rand_state: int, 
                 save_model_path: Path) -> None:
         
-        if not sys.warnoptions:
+        if model == "logreg" and not sys.warnoptions:
                 warnings.simplefilter("ignore")
                 os.environ["PYTHONWARNINGS"] = "ignore" # Also affect subprocesses
 
