@@ -14,6 +14,9 @@ from sklearn.model_selection import GridSearchCV
 from joblib import dump
 import mlflow
 import mlflow.sklearn
+import sys
+import warnings
+import os
 
 def create_pipeline(preprocess: str, n_features: int, model: str, n_neighbors: int, leaf_size: int, 
                         c_reg: float, max_iter:int, n_estimators: int, max_depth: int, rand_state: int) -> Pipeline:
@@ -29,7 +32,7 @@ def create_pipeline(preprocess: str, n_features: int, model: str, n_neighbors: i
                 KNeighborsClassifier(n_neighbors, leaf_size=leaf_size, 
                                         weights="distance", n_jobs=-1),
                 "logreg":
-                LogisticRegression(C=c_reg, max_iter=max_iter, 
+                LogisticRegression(C=c_reg, max_iter=max_iter, solver="saga",
                                         random_state=rand_state, n_jobs=-1),
                 "rf": RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth,
                                         random_state=rand_state, n_jobs=-1)
@@ -46,7 +49,7 @@ def train_with_nested_cv(classifier, X, y, cv_out,
                 model: str, k_fold_inn:int, shuffle: bool, rand_state: int) -> None:
         out_res = {"accuracy": [], "matthews": [], "f1": []}
         for train_ix, test_ix in cv_out.split(X, y):
-                sample_size = 5000
+                sample_size = 7000
                 mlflow.log_param("sample_size", sample_size)
                 X_train = X[train_ix[:sample_size], :]
                 X_test = X[test_ix, :]
@@ -63,13 +66,13 @@ def train_with_nested_cv(classifier, X, y, cv_out,
                         elif model == "logreg":
                                 params = {"clf__C": [0.0001, 0.001, 0.05, 0.01, 0.5, 1],
                                         "clf__max_iter": [10, 50, 100, 150, 200],
-                                        "clf__penalty": ["l1", "l2", "elasticnet", "none"]
+                                        "clf__penalty": ["l1", "l2", "elasticnet"]
                                 }
                         elif model == "rf":
-                                params = {"clf__n_estimators": [20, 50, 75, 100, 150],
-                                        "clf__max_depth": [5, 7, 10, 20, 30, None],
+                                params = {"clf__n_estimators": [75, 100, 150],
+                                        "clf__max_depth": [20, 30, 40],
                                         "clf__criterion": ["gini", "entropy"],
-                                        "clf__max_features": ["sqrt", "log2", 0.9, 0.7, 0.5]
+                                        "clf__max_features": ["sqrt", "log2", 0.5, 0.4]
                                 }
                         search = GridSearchCV(classifier, params,
                                                 scoring={"Matthews correlation": make_scorer(matthews_corrcoef), 
@@ -168,6 +171,10 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
                 k_fold:int, k_fold_inn:int, shuffle: bool, rand_state: int, 
                 save_model_path: Path) -> None:
         
+        if not sys.warnoptions:
+                warnings.simplefilter("ignore")
+                os.environ["PYTHONWARNINGS"] = "ignore" # Also affect subprocesses
+
         data = pd.read_csv(ds_path)
         click.echo(f"Dataset shape: {data.shape}")
 
