@@ -19,7 +19,8 @@ import warnings
 import os
 
 def create_pipeline(preprocess: str, n_features: int, model: str, n_neighbors: int, leaf_size: int, 
-                        c_reg: float, max_iter:int, n_estimators: int, max_depth: int, rand_state: int) -> Pipeline:
+                        c_reg: float, max_iter:int, n_estimators: int, max_depth: int, criterion: str, 
+                        max_features, rand_state: int) -> Pipeline:
         preproc_map = {
                 "none": None, 
                 "min_max": MinMaxScaler(), 
@@ -103,7 +104,7 @@ def train_with_nested_cv(classifier, X, y, cv_out,
 def train_without_nested_cv(classifier, X, y, kfold, model: str, 
                 n_neighbors: int, leaf_size: int, 
                 c_reg: float, max_iter:int, 
-                n_estimators: int, max_depth: int,
+                n_estimators: int, max_depth: int, criterion: str, max_features,
                 k_fold:int) -> None:
         cv_results = cross_validate(classifier, X, y, 
                                         scoring={"Matthews correlation": make_scorer(matthews_corrcoef), 
@@ -120,6 +121,8 @@ def train_without_nested_cv(classifier, X, y, kfold, model: str,
         elif model == "rf":
                 mlflow.log_param("n_estimators", n_estimators)
                 mlflow.log_param("max_depth", max_depth)
+                mlflow.log_param("criterion", criterion)
+                mlflow.log_param("max_features", max_features)
         
         mlflow.sklearn.log_model(classifier, "".join(["forest_", model]))
         mlflow.log_metric("matthews_corrcoef", np.mean(cv_results["test_Matthews correlation"]))
@@ -154,6 +157,10 @@ def train_without_nested_cv(classifier, X, y, kfold, model: str,
                 help="Hyperparameter for Logistic regression classifier")
 @click.option("--n-estimators", default=100, type=int,
                 help="Hyperparameter for Random forest classifier")
+@click.option("--criterion", default="gini", type=click.Choice(["gini", "entropy"]),
+                help="Hyperparameter for Random forest classifier")
+@click.option("--max-features", default="auto", 
+                help="Hyperparameter for Random forest classifier. Values: {'auto', 'sqrt', 'log2', int or float")
 @click.option("--max-depth", default=None, type=int,
                 help="Hyperparameter for Random forest classifier")
 @click.option("-f", "--k-fold", default=5, type=int,
@@ -167,7 +174,7 @@ def train_without_nested_cv(classifier, X, y, kfold, model: str,
 def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: bool, 
                 n_neighbors: int, leaf_size: int, 
                 c_reg: float, max_iter:int, 
-                n_estimators: int, max_depth: int,
+                n_estimators: int, max_depth: int, criterion: str, max_features,
                 k_fold:int, k_fold_inn:int, shuffle: bool, rand_state: int, 
                 save_model_path: Path) -> None:
         
@@ -181,11 +188,11 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
         X, y = data.drop(columns=["Id", "Cover_Type"]), data["Cover_Type"]
 
         classifier = create_pipeline(preproc, n_features, model, n_neighbors, leaf_size, c_reg, max_iter, 
-                                        n_estimators, max_depth, rand_state)
+                                        n_estimators, max_depth, criterion, max_features, rand_state)
         
         r_state = rand_state if shuffle == True else None
         cv_out = StratifiedKFold(n_splits=k_fold, shuffle=shuffle, random_state=r_state)
-        with mlflow.start_run(run_name="_".join([model, "nested_k_fold"])):
+        with mlflow.start_run(run_name="_".join([model, "_k_fold"])):
                 mlflow.log_param("nested_cv", nested_cv)
                 if nested_cv == True:
                         cv_results =train_with_nested_cv(classifier, X.to_numpy(), y.to_numpy(), cv_out, model, 
@@ -194,7 +201,7 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
                         cv_results = train_without_nested_cv(classifier, X, y, cv_out, model, 
                                                 n_neighbors, leaf_size, 
                                                 c_reg, max_iter, 
-                                                n_estimators, max_depth,
+                                                n_estimators, max_depth, criterion, max_features,
                                                 k_fold)
                         
 
