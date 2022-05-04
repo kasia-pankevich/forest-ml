@@ -183,6 +183,10 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
                 os.environ["PYTHONWARNINGS"] = "ignore" # Also affect subprocesses
 
         data = pd.read_csv(ds_path)
+
+        if n_features < 1 or n_features > data.shape[1]:
+                raise ValueError(f"Invalid value for '--n-features'. It should be in a range [1, {data.shape[1]}]")
+
         click.echo(f"Dataset shape: {data.shape}")
 
         X, y = data.drop(columns=["Id", "Cover_Type"]), data["Cover_Type"]
