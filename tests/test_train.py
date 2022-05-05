@@ -1,13 +1,11 @@
 from click.testing import CliRunner
 import click
 import pytest
-from joblib import load
 import pandas as pd
 from pathlib import Path
 
 from forest_ml.train import train
 from forest_ml.predict import predict
-import forest_ml.eda
 
 
 @pytest.fixture
@@ -29,7 +27,7 @@ def test_error_for_invalid_n_features(runner: CliRunner) -> None:
 def test_for_valid_case(runner: CliRunner, tmp_path) -> None:
     samle_path = Path("tests/sample.csv").resolve()
     samle_test_path = Path("tests/sample_test.csv").resolve()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as td:
+    with runner.isolated_filesystem(temp_dir=tmp_path):
         mdl_path = "mdl.joblib"
         result = runner.invoke(
             train,
@@ -55,4 +53,7 @@ def test_for_valid_case(runner: CliRunner, tmp_path) -> None:
         )
         y_predict = pd.read_csv(subm_path)
         assert result.exit_code == 0
-        assert y_predict["Cover_Type"].isin(range(1, 8)).sum() == y_predict.shape[0]
+        assert (
+            y_predict["Cover_Type"].isin(range(1, 8)).sum()
+            == y_predict.shape[0]
+        )

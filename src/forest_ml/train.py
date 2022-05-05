@@ -9,7 +9,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_validate, StratifiedKFold
-from sklearn.metrics import make_scorer, accuracy_score, matthews_corrcoef, f1_score
+from sklearn.metrics import make_scorer, accuracy_score
+from sklearn.metrics import matthews_corrcoef, f1_score
 from sklearn.model_selection import GridSearchCV
 from joblib import dump
 import mlflow
@@ -86,7 +87,9 @@ def train_with_nested_cv(
         X_test = X[test_ix, :]
         y_train = y[train_ix[:sample_size]]
         y_test = y[test_ix]
-        with mlflow.start_run(nested=True, run_name="_".join([model, "tuning_params"])):
+        with mlflow.start_run(
+            nested=True, run_name="_".join([model, "tuning_params"])
+        ):
             cv_in = StratifiedKFold(
                 n_splits=k_fold_inn, shuffle=shuffle, random_state=rand_state
             )
@@ -224,26 +227,36 @@ def train_without_nested_cv(
     "--n-features",
     default=3,
     type=int,
-    help="Number of features to leave for dimensionality reduction. Used if preproc set to 'pca' or 'svd'",
+    help="Number of features to leave for dimensionality reduction."
+    + "Used if preproc set to 'pca' or 'svd'",
 )
 @click.option(
     "-m",
     "--model",
-    default="knn",
+    default="rf",
     type=click.Choice(["knn", "logreg", "rf"], case_sensitive=False),
-    help="Name of model to train: knn for K-nearest neighbors, logreg for Logistic regression, rf for Random forest classifier",
+    help="Name of model to train: knn for K-nearest neighbors,"
+    + "logreg for Logistic regression, rf for Random forest classifier",
 )
 @click.option(
     "--nested-cv",
-    default=True,
+    default=False,
     type=bool,
-    help="Wether to do model hyperparameters tuning (through nested cross-validation)",
+    help="Wether to do model hyperparameters tuning"
+    + "(through nested cross-validation)",
 )
 @click.option(
-    "-n", "--n-neighbors", default=5, type=int, help="Hyperparameter for KNN classifier"
+    "-n",
+    "--n-neighbors",
+    default=5,
+    type=int,
+    help="Hyperparameter for KNN classifier",
 )
 @click.option(
-    "--leaf-size", default=30, type=int, help="Hyperparameter for KNN classifier"
+    "--leaf-size",
+    default=30,
+    type=int,
+    help="Hyperparameter for KNN classifier",
 )
 @click.option(
     "-c",
@@ -273,7 +286,8 @@ def train_without_nested_cv(
 @click.option(
     "--max-features",
     default="auto",
-    help="Hyperparameter for Random forest classifier. Values: {'auto', 'sqrt', 'log2', int or float",
+    help="Hyperparameter for Random forest classifier."
+    + "Values: {'auto', 'sqrt', 'log2', int or float",
 )
 @click.option(
     "--max-depth",
@@ -292,10 +306,14 @@ def train_without_nested_cv(
     "--k-fold-inn",
     default=3,
     type=int,
-    help="Number of folders for k-fold hyperparameters tuning (used in nested CV)",
+    help="Number of folders for k-fold hyperparameters tuning"
+    + "(used in nested CV)",
 )
 @click.option(
-    "--shuffle", default=True, type=bool, help="Wether to shuffle data during splitting"
+    "--shuffle",
+    default=True,
+    type=bool,
+    help="Wether to shuffle data during splitting",
 )
 @click.option(
     "-r",
@@ -338,7 +356,8 @@ def train(
 
     if n_features < 1 or n_features > X.shape[1]:
         raise ValueError(
-            f"Invalid value for '--n-features'. It should be in a range [1, {X.shape[1]}]"
+            "Invalid value for '--n-features'."
+            + f"It should be in a range [1, {X.shape[1]}]"
         )
 
     classifier = create_pipeline(
@@ -356,11 +375,13 @@ def train(
         rand_state,
     )
 
-    r_state = rand_state if shuffle == True else None
-    cv_out = StratifiedKFold(n_splits=k_fold, shuffle=shuffle, random_state=r_state)
+    r_state = rand_state if shuffle is True else None
+    cv_out = StratifiedKFold(
+        n_splits=k_fold, shuffle=shuffle, random_state=r_state
+    )
     with mlflow.start_run(run_name="_".join([model, "_k_fold"])):
         mlflow.log_param("nested_cv", nested_cv)
-        if nested_cv == True:
+        if nested_cv is True:
             cv_results = train_with_nested_cv(
                 classifier,
                 X.to_numpy(),

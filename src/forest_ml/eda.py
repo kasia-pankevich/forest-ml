@@ -5,7 +5,10 @@ from pandas_profiling import ProfileReport
 
 @click.command()
 @click.option(
-    "-d", "--ds-path", default="data/train.csv", help="Path to train dataset csv"
+    "-d",
+    "--ds-path",
+    default="data/train.csv",
+    help="Path to train dataset csv",
 )
 @click.option(
     "-s",

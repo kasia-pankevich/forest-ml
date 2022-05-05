@@ -27,7 +27,9 @@ import forest_ml.features_preparing as fp
     type=click.Path(dir_okay=False, writable=True, path_type=Path),
     help="File path to save submissions .csv file",
 )
-def predict(model_path: Path, test_data_path: Path, submission_path: Path) -> None:
+def predict(
+    model_path: Path, test_data_path: Path, submission_path: Path
+) -> None:
     model = load(model_path)
     X_test_in = pd.read_csv(test_data_path)
     X_test = fp.prepare(X_test_in)
