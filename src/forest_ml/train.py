@@ -17,6 +17,7 @@ import mlflow.sklearn
 import sys
 import warnings
 import os
+import forest_ml.features_preparing as fp
 
 def create_pipeline(preprocess: str, n_features: int, model: str, n_neighbors: int, leaf_size: int, 
                         c_reg: float, max_iter:int, n_estimators: int, max_depth: int, criterion: str, 
@@ -96,6 +97,7 @@ def train_with_nested_cv(classifier, X, y, cv_out,
                         mlflow.log_metric("matthews_corrcoef", matthews)
                         mlflow.log_metric("Accuracy score", accuracy)
                         mlflow.log_metric("F1 score", f1)
+                        classifier = results.best_estimator_
         mlflow.log_metric("matthews_corrcoef", np.mean(out_res["matthews"]))
         mlflow.log_metric("Accuracy score", np.mean(out_res["accuracy"]))
         mlflow.log_metric("F1 score", np.mean(out_res["f1"]))
@@ -184,12 +186,13 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
 
         data = pd.read_csv(ds_path)
 
-        if n_features < 1 or n_features > data.shape[1]:
-                raise ValueError(f"Invalid value for '--n-features'. It should be in a range [1, {data.shape[1]}]")
-
         click.echo(f"Dataset shape: {data.shape}")
 
-        X, y = data.drop(columns=["Id", "Cover_Type"]), data["Cover_Type"]
+        X, y = data.drop(columns=["Cover_Type"]), data["Cover_Type"]
+        X = fp.prepare(X)
+
+        if n_features < 1 or n_features > X.shape[1]:
+                raise ValueError(f"Invalid value for '--n-features'. It should be in a range [1, {X.shape[1]}]")
 
         classifier = create_pipeline(preproc, n_features, model, n_neighbors, leaf_size, c_reg, max_iter, 
                                         n_estimators, max_depth, criterion, max_features, rand_state)
@@ -215,5 +218,7 @@ def train(ds_path: Path, preproc: str, n_features: int, model: str, nested_cv: b
                 mlflow.log_param("shuffle", shuffle)
                 
         click.echo(f"Cross validation results: {cv_results}")
+
+        classifier.fit(X, y)
         dump(classifier, save_model_path)
         click.echo(f"Model has been saved to {save_model_path}")

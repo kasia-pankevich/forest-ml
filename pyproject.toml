@@ -6,6 +6,7 @@ authors = ["Kasia Pankevich <kasia.bahar@gmail.com>"]
 
 [tool.poetry.scripts]
 train = "forest_ml.train:train"
+predict = "forest_ml.predict:predict"
 eda = "forest_ml.eda:profile"
 
 [tool.poetry.dependencies]
