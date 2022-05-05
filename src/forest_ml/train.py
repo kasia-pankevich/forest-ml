@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_validate, StratifiedKFold
+from sklearn.model_selection import cross_validate, KFold, StratifiedKFold
 from sklearn.metrics import make_scorer, accuracy_score
 from sklearn.metrics import matthews_corrcoef, f1_score
 from sklearn.model_selection import GridSearchCV
@@ -19,6 +19,7 @@ import sys
 import warnings
 import os
 import forest_ml.features_preparing as fp
+from typing import Dict, List, Any, Optional
 
 
 def create_pipeline(
@@ -32,7 +33,7 @@ def create_pipeline(
     n_estimators: int,
     max_depth: int,
     criterion: str,
-    max_features,
+    max_features: object,
     rand_state: int,
 ) -> Pipeline:
     preproc_map = {
@@ -70,16 +71,20 @@ def create_pipeline(
 
 
 def train_with_nested_cv(
-    classifier,
-    X,
-    y,
-    cv_out,
+    classifier: Pipeline,
+    X: pd.DataFrame,
+    y: pd.DataFrame,
+    cv_out: KFold,
     model: str,
     k_fold_inn: int,
     shuffle: bool,
-    rand_state: int,
-) -> None:
-    out_res = {"accuracy": [], "matthews": [], "f1": []}
+    rand_state: Optional[int],
+) -> Dict[str, List[float]]:
+    out_res: Dict[str, List[float]] = {
+        "accuracy": [],
+        "matthews": [],
+        "f1": [],
+    }
     for train_ix, test_ix in cv_out.split(X, y):
         sample_size = 7000
         mlflow.log_param("sample_size", sample_size)
@@ -151,10 +156,10 @@ def train_with_nested_cv(
 
 
 def train_without_nested_cv(
-    classifier,
-    X,
-    y,
-    kfold,
+    classifier: Pipeline,
+    X: pd.DataFrame,
+    y: pd.DataFrame,
+    kfold: KFold,
     model: str,
     n_neighbors: int,
     leaf_size: int,
@@ -163,9 +168,9 @@ def train_without_nested_cv(
     n_estimators: int,
     max_depth: int,
     criterion: str,
-    max_features,
+    max_features: object,
     k_fold: int,
-) -> None:
+) -> Any:
     cv_results = cross_validate(
         classifier,
         X,
@@ -335,7 +340,7 @@ def train(
     n_estimators: int,
     max_depth: int,
     criterion: str,
-    max_features,
+    max_features: object,
     k_fold: int,
     k_fold_inn: int,
     shuffle: bool,
