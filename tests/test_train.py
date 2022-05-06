@@ -47,7 +47,7 @@ def test_for_valid_case(runner: CliRunner, tmp_path: Path) -> None:
         if result.exit_code != 0:
             click.echo(result.output)
         assert result.exit_code == 0
-        subm_path = tmp_path / "submissions.csv"
+        subm_path = "submissions.csv"
         result = runner.invoke(
             predict,
             [
