@@ -21,7 +21,7 @@ def test_error_for_invalid_preproc(runner: CliRunner) -> None:
 
 def test_error_for_invalid_n_features(runner: CliRunner) -> None:
     result = runner.invoke(train, ["--n-features", "100"])
-    assert result.exit_code == 1
+    assert result.exit_code != 0
 
 
 def test_for_valid_case(runner: CliRunner, tmp_path: Path) -> None:
