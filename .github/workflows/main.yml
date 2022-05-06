@@ -63,4 +63,4 @@ jobs:
       #              run all nox sessions
       #----------------------------------------------
       - name: Nox
-        run: nox
+        run: poetry run nox
