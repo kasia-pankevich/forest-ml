@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: nox
 
 # Controls when the workflow will run
 on:
@@ -15,21 +15,52 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  # This workflow contains a single job called "nox_sessions"
+  nox_sessions:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
-      
-      - name: Install poetry
-        run: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
-      
-      - name: Install all project dependencies with poetry
-        run: poetry install
+      #----------------------------------------------
+      #       check-out repo and set-up python
+      #----------------------------------------------
+      - name: Check out repository
+        uses: actions/checkout@v2
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      #----------------------------------------------
+      #  -----  install & configure poetry  -----
+      #----------------------------------------------
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
 
+      #----------------------------------------------
+      #       load cached venv if cache exists
+      #----------------------------------------------
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v2
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      #----------------------------------------------
+      # install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+      #----------------------------------------------
+      # install your root project, if required
+      #----------------------------------------------
+      - name: Install library
+        run: poetry install --no-interaction
+      #----------------------------------------------
+      #              run all nox sessions
+      #----------------------------------------------
       - name: Nox
         run: nox
