@@ -28,3 +28,25 @@ poetry run train --help
 ```sh
 poetry run mlflow ui
 ```
+
+## Development
+
+The code in this repository must be tested, formatted with black and linted with flake8, and pass mypy typechecking before being commited to the repository.
+
+Install all requirements (including dev requirements) to poetry environment:
+```
+poetry install
+```
+Now you can use developer instruments, e.g. pytest:
+```
+poetry run pytest
+```
+More conveniently, to run all sessions of testing and formatting in a single command, install and use [nox](https://nox.thea.codes/en/stable/): 
+```
+nox 
+```
+Format your code with [black](https://github.com/psf/black) by using either nox or poetry:
+```
+nox black
+poetry run black src tests noxfile.py
+```
