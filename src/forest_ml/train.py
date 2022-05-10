@@ -59,6 +59,7 @@ def create_pipeline(
             max_depth=max_depth,
             random_state=rand_state,
             n_jobs=-1,
+            max_features=max_features,
         ),
     }
     preprocessor = preproc_map[preprocess.lower()]
