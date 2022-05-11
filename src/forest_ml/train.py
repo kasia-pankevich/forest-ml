@@ -6,7 +6,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_validate, KFold, StratifiedKFold
 from sklearn.metrics import make_scorer, accuracy_score
@@ -21,6 +21,13 @@ import os
 import forest_ml.features_preparing as fp
 from typing import Dict, List, Any, Optional
 
+def try_convert_to_number_tryexcept(s):
+    """ Returns number if string is a number, otherwise return initial string. """
+    try:
+        dig = float(s)
+        return dig
+    except ValueError:
+        return s
 
 def create_pipeline(
     preprocess: str,
@@ -43,6 +50,12 @@ def create_pipeline(
         "pca": PCA(n_features),
         "svd": TruncatedSVD(n_features),
     }
+
+    if max_features.isdigit() is True:
+        max_features = int(max_features)
+    else:
+        max_features = try_convert_to_number_tryexcept(max_features)
+
     model_map = {
         "knn": KNeighborsClassifier(
             n_neighbors, leaf_size=leaf_size, weights="distance", n_jobs=-1
@@ -61,6 +74,13 @@ def create_pipeline(
             n_jobs=-1,
             max_features=max_features,
         ),
+        "et": ExtraTreesClassifier(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            random_state=rand_state,
+            n_jobs=-1,
+            max_features=max_features,
+        ),
     }
     preprocessor = preproc_map[preprocess.lower()]
     ppl_steps = []
@@ -69,7 +89,6 @@ def create_pipeline(
     classifier = model_map[model.lower()]
     ppl_steps.append(("clf", classifier))
     return Pipeline(ppl_steps)
-
 
 def train_with_nested_cv(
     classifier: Pipeline,
@@ -112,7 +131,7 @@ def train_with_nested_cv(
                     "clf__max_iter": [10, 50, 100, 150, 200],
                     "clf__penalty": ["l1", "l2", "elasticnet"],
                 }
-            elif model == "rf":
+            elif model in ["rf", "et"]:
                 params = {
                     "clf__n_estimators": [75, 100, 150],
                     "clf__max_depth": [20, 30, 40],
@@ -191,7 +210,7 @@ def train_without_nested_cv(
     elif model == "logreg":
         mlflow.log_param("C", c_reg)
         mlflow.log_param("max_iter", max_iter)
-    elif model == "rf":
+    elif model in ["rf", "et"]:
         mlflow.log_param("n_estimators", n_estimators)
         mlflow.log_param("max_depth", max_depth)
         mlflow.log_param("criterion", criterion)
@@ -239,10 +258,11 @@ def train_without_nested_cv(
 @click.option(
     "-m",
     "--model",
-    default="rf",
-    type=click.Choice(["knn", "logreg", "rf"], case_sensitive=False),
-    help="Name of model to train: knn for K-nearest neighbors,"
-    + "logreg for Logistic regression, rf for Random forest classifier",
+    default="et",
+    type=click.Choice(["knn", "logreg", "rf", "et"], case_sensitive=False),
+    help="Name of model to train: knn for K-Nearest Neighbors,"
+    + "logreg for Logistic Regression, rf for Random Forest Classifier,"
+    + "et for Extra Trees Classifier",
 )
 @click.option(
     "--nested-cv",
@@ -281,25 +301,25 @@ def train_without_nested_cv(
     "--n-estimators",
     default=100,
     type=int,
-    help="Hyperparameter for Random forest classifier",
+    help="Hyperparameter for Random Forest or Extra Trees classifier",
 )
 @click.option(
     "--criterion",
     default="gini",
     type=click.Choice(["gini", "entropy"]),
-    help="Hyperparameter for Random forest classifier",
+    help="Hyperparameter for Random forest or Extra Trees classifier",
 )
 @click.option(
     "--max-features",
     default="auto",
-    help="Hyperparameter for Random forest classifier."
+    help="Hyperparameter for Random forest or Extra Trees classifier."
     + "Values: {'auto', 'sqrt', 'log2', int or float",
 )
 @click.option(
     "--max-depth",
     default=None,
     type=int,
-    help="Hyperparameter for Random forest classifier",
+    help="Hyperparameter for Random forest or Extra Trees classifier",
 )
 @click.option(
     "-f",
@@ -358,7 +378,9 @@ def train(
     click.echo(f"Dataset shape: {data.shape}")
 
     X, y = data.drop(columns=["Cover_Type"]), data["Cover_Type"]
-    X = fp.prepare(X)
+    X = fp.prepare(X).to_numpy()
+    click.echo(f"Number of features: {X.shape[1]}")
+    y = y.to_numpy()
 
     if n_features < 1 or n_features > X.shape[1]:
         raise ValueError(
@@ -385,13 +407,14 @@ def train(
     cv_out = StratifiedKFold(
         n_splits=k_fold, shuffle=shuffle, random_state=r_state
     )
+
     with mlflow.start_run(run_name="_".join([model, "_k_fold"])):
         mlflow.log_param("nested_cv", nested_cv)
         if nested_cv is True:
             cv_results = train_with_nested_cv(
                 classifier,
-                X.to_numpy(),
-                y.to_numpy(),
+                X,
+                y,
                 cv_out,
                 model,
                 k_fold_inn,
@@ -422,7 +445,6 @@ def train(
         mlflow.log_param("shuffle", shuffle)
 
     click.echo(f"Cross validation results: {cv_results}")
-
     classifier.fit(X, y)
     dump(classifier, save_model_path)
     click.echo(f"Model has been saved to {save_model_path}")

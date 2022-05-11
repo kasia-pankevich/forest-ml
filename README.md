@@ -18,7 +18,7 @@ poetry run eda -d <path to csv with data> -s <path to save EDA report>
 ```
 6. Run train with the following command:
 ```sh
-poetry run train -d <path to csv with data> -s <path to save trained model> -m <model name (knn, rf for random forest, logreg for logistic regression)> --preproc <type of data preprocessing> --nested-cv <True/False to do hyperparameters tuning in nested cross-validation>
+poetry run train -d <path to csv with data> -s <path to save trained model> -m <model name (knn, et for Extra Trees Classifier, logreg for Logistic Regression)> --preproc <type of data preprocessing> --nested-cv <True/False to do hyperparameters tuning in nested cross-validation>
 ```
 You can configure additional options (such as hyperparameters and k-fold parameters) in the CLI. To get a full list of them, use help:
 ```sh
