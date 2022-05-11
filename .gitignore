@@ -3,3 +3,4 @@ __pycache__
 forest_report.html
 mlruns
 .nox
+.ipynb_checkpoints
