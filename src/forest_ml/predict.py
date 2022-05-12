@@ -30,11 +30,9 @@ import forest_ml.features_preparing as fp
 def predict(
     model_path: Path, test_data_path: Path, submission_path: Path
 ) -> None:
-# TODO: test predict proba
     model = load(model_path)
     X_test_in = pd.read_csv(test_data_path)
     X_test = fp.prepare(X_test_in)
-    click.echo(f"Number of features: {X_test.columns}")
     y_predicted = model.predict(X_test)
     pd.DataFrame({"Id": X_test_in["Id"], "Cover_Type": y_predicted}).set_index(
         ["Id"]
