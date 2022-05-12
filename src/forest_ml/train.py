@@ -39,6 +39,8 @@ def create_pipeline(
     max_iter: int,
     n_estimators: int,
     max_depth: int,
+    min_samples_leaf: int,
+    min_samples_split: int,
     criterion: str,
     max_features: object,
     rand_state: int,
@@ -73,6 +75,8 @@ def create_pipeline(
             random_state=rand_state,
             n_jobs=-1,
             max_features=max_features,
+            min_samples_leaf=min_samples_leaf,
+            min_samples_split=min_samples_split,
         ),
         "et": ExtraTreesClassifier(
             n_estimators=n_estimators,
@@ -80,6 +84,8 @@ def create_pipeline(
             random_state=rand_state,
             n_jobs=-1,
             max_features=max_features,
+            min_samples_leaf=min_samples_leaf,
+            min_samples_split=min_samples_split,
         ),
     }
     preprocessor = preproc_map[preprocess.lower()]
@@ -133,10 +139,12 @@ def train_with_nested_cv(
                 }
             elif model in ["rf", "et"]:
                 params = {
-                    "clf__n_estimators": [75, 100, 150],
-                    "clf__max_depth": [20, 30, 40],
+                    "clf__n_estimators": [100, 200, 300, 400, 500],
+                    # "clf__max_depth": [10, 15, 20, 25, 30, None],
+                    'clf__min_samples_split': [2, 3, 5, 7, 9],
+                    'clf__min_samples_leaf': [1, 2, 4, 6, 8],
                     "clf__criterion": ["gini", "entropy"],
-                    "clf__max_features": ["sqrt", "log2", 0.5, 0.4],
+                    "clf__max_features": ["auto", "sqrt", "log2", 0.5, 0.4, 0.3, None],
                 }
             search = GridSearchCV(
                 classifier,
@@ -313,11 +321,23 @@ def train_without_nested_cv(
     "--max-features",
     default="auto",
     help="Hyperparameter for Random forest or Extra Trees classifier."
-    + "Values: {'auto', 'sqrt', 'log2', int or float",
+    + "Values: {'auto', 'sqrt', 'log2', int or float}",
 )
 @click.option(
     "--max-depth",
     default=None,
+    type=int,
+    help="Hyperparameter for Random forest or Extra Trees classifier",
+)
+@click.option(
+    "--min-samples-leaf",
+    default=1,
+    type=int,
+    help="Hyperparameter for Random forest or Extra Trees classifier",
+)
+@click.option(
+    "--min-samples-split",
+    default=2,
     type=int,
     help="Hyperparameter for Random forest or Extra Trees classifier",
 )
@@ -362,6 +382,8 @@ def train(
     max_depth: int,
     criterion: str,
     max_features: object,
+    min_samples_leaf: int,
+    min_samples_split: int,
     k_fold: int,
     k_fold_inn: int,
     shuffle: bool,
@@ -398,6 +420,8 @@ def train(
         max_iter,
         n_estimators,
         max_depth,
+        min_samples_leaf,
+        min_samples_split,
         criterion,
         max_features,
         rand_state,
