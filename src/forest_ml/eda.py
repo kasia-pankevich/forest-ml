@@ -19,7 +19,10 @@ from pandas_profiling import ProfileReport
 def profile(ds_path: str, save_output_path: str) -> None:
     data = pd.read_csv(ds_path)
     profile = ProfileReport(
-        data, title="Forest Cover Type Profiling Report", explorative=True, minimal=False
+        data,
+        title="Forest Cover Type Profiling Report",
+        explorative=True,
+        minimal=False,
     )
     profile.to_file(save_output_path)
     click.echo(f"View report in file '{save_output_path}'")

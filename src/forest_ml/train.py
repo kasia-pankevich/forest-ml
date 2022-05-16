@@ -21,13 +21,15 @@ import os
 import forest_ml.features_preparing as fp
 from typing import Dict, List, Any, Optional
 
+
 def try_convert_to_number_tryexcept(s):
-    """ Returns number if string is a number, otherwise return initial string. """
+    # Returns number if string is a number, otherwise return initial string
     try:
         dig = float(s)
         return dig
     except ValueError:
         return s
+
 
 def create_pipeline(
     preprocess: str,
@@ -96,6 +98,7 @@ def create_pipeline(
     ppl_steps.append(("clf", classifier))
     return Pipeline(ppl_steps)
 
+
 def train_with_nested_cv(
     classifier: Pipeline,
     X: pd.DataFrame,
@@ -141,10 +144,18 @@ def train_with_nested_cv(
                 params = {
                     "clf__n_estimators": [100, 200, 300, 400, 500],
                     # "clf__max_depth": [10, 15, 20, 25, 30, None],
-                    'clf__min_samples_split': [2, 3, 5, 7, 9],
-                    'clf__min_samples_leaf': [1, 2, 4, 6, 8],
+                    "clf__min_samples_split": [2, 3, 5, 7, 9],
+                    "clf__min_samples_leaf": [1, 2, 4, 6, 8],
                     "clf__criterion": ["gini", "entropy"],
-                    "clf__max_features": ["auto", "sqrt", "log2", 0.5, 0.4, 0.3, None],
+                    "clf__max_features": [
+                        "auto",
+                        "sqrt",
+                        "log2",
+                        0.5,
+                        0.4,
+                        0.3,
+                        None,
+                    ],
                 }
             search = GridSearchCV(
                 classifier,
